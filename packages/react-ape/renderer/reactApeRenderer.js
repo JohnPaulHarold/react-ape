@@ -6,30 +6,37 @@
  *
  */
 
-import {CanvasComponentContext} from './types';
+import { CanvasComponentContext } from "./types";
 
-import reconciler from 'react-reconciler';
-import reactApeComponent from './reactApeComponent';
-import {scaleDPI, clearCanvas} from './core/canvas';
-import {renderElement, renderQueue} from './core/render';
-import {precacheFiberNode, updateFiberProps} from './reactApeComponentTree';
-import devToolsConfig from './config/devtools';
+import reconciler from "react-reconciler";
+import reactApeComponent from "./reactApeComponent";
+import { scaleDPI, clearCanvas } from "./core/canvas";
+import { renderElement, renderQueue } from "./core/render";
+import { precacheFiberNode, updateFiberProps } from "./reactApeComponentTree";
+import devToolsConfig from "./config/devtools";
 import {
   now as FrameSchedulingNow,
   cancelDeferredCallback as FrameSchedulingCancelDeferredCallback,
   scheduleDeferredCallback as FrameSchedulingScheduleDeferredCallback,
-  shouldYield as FrameSchedulingShouldYield,
-} from './reactApeFrameScheduling';
+  shouldYield as FrameSchedulingShouldYield
+} from "./reactApeFrameScheduling";
 
 // TODO: Use Context.
 let apeContextGlobal = null;
 let surfaceHeight = 0;
 
+console.log("[reactApeRenderer] surfaceHeight", surfaceHeight);
+
 const ReactApeFiber = reconciler({
   appendInitialChild(parentInstance, child) {
-    if (parentInstance.appendChild && child.type !== 'View') {
-      parentInstance.appendChild(child);
+    // console.log(
+    //   "[reactApeRenderer][appendInitialChild] parentInstance %o, child %o",
+    //   parentInstance,
+    //   child
+    // );
 
+    if (parentInstance.appendChild) {
+      parentInstance.appendChild(child);
       // TODO: Change it later
       child.getParentLayout = parentInstance.getLayoutDefinitions;
     }
@@ -44,18 +51,18 @@ const ReactApeFiber = reconciler({
   ) {
     if (!apeContextGlobal && rootContainerInstance.getContext) {
       const rootContainerInstanceContext = rootContainerInstance.getContext(
-        '2d'
+        "2d"
       );
 
       scaleDPI(rootContainerInstance, rootContainerInstanceContext);
       apeContextGlobal = {
-        type: 'canvas',
+        type: "canvas",
         getSurfaceHeight: () => surfaceHeight,
         setSurfaceHeight: height => {
           surfaceHeight = height;
         },
         renderQueue: [],
-        ctx: rootContainerInstanceContext,
+        ctx: rootContainerInstanceContext
       };
     }
 
@@ -69,19 +76,24 @@ const ReactApeFiber = reconciler({
 
     precacheFiberNode(internalInstanceHandle, apeElement);
     updateFiberProps(apeElement, props);
+
     return apeElement;
   },
 
   createTextInstance(text, rootContainerInstance, internalInstanceHandle) {
     // let textNode = reactApeComponent.createTextNode(text, rootContainerInstance);
     // precacheFiberNode(internalInstanceHandle, textNode);
+
     return text;
   },
 
   finalizeInitialChildren(parentInstance, type, props) {
-    if (type === 'View') {
-      parentInstance.render(apeContextGlobal);
-    }
+    // console.log("[reactApeRenderer][finalizeInitialChildren] props", props);
+
+    // if (type === "View" && props.children) {
+    //   parentInstance.render(apeContextGlobal);
+    // }
+
     return false;
   },
 
@@ -113,7 +125,7 @@ const ReactApeFiber = reconciler({
         );
 
         // If isn't a children update, should render with new props
-        if (diff.length && diff.indexOf('children') === -1) {
+        if (diff.length && diff.indexOf("children") === -1) {
           renderElement(apeContextGlobal, apeElement, parentLayout);
           return null;
         }
@@ -123,13 +135,13 @@ const ReactApeFiber = reconciler({
         return null;
       }
 
-      if (type === 'Text' && newProps.children && newProps.children.join) {
+      if (type === "Text" && newProps.children && newProps.children.join) {
         const parentLayout = element.parentLayout || element.getParentLayout();
         element.clear(oldProps, parentLayout, apeContextGlobal);
 
         const apeElement = reactApeComponent.createElement(
           type,
-          {...newProps, children: newProps.children.join('')},
+          { ...newProps, children: newProps.children.join("") },
           rootContainerInstance,
           apeContextGlobal
         );
@@ -177,13 +189,29 @@ const ReactApeFiber = reconciler({
   },
 
   appendChildToContainer(parentInstance, child) {
-    // apeContextGlobal.setSurfaceHeight(0);
-    // if (child.render) {
-    //   child.render(apeContextGlobal);
-    // }
+    // console.log(
+    //   "[reactApeRenderer][appendChildToContainer] parentInstance %o child %o",
+    //   parentInstance,
+    //   child
+    // );
+
+    // this is at the end, or at least right at the end of the
+    // reconciler process
+    // why not do all the render calls here?
+
+    apeContextGlobal.setSurfaceHeight(0);
+
+    if (child.render) {
+      child.render(apeContextGlobal);
+    }
   },
 
   appendChild(parentInstance, child) {
+    // console.log(
+    //   "[reactApeRenderer][appendChild] parentInstance %o child %o",
+    //   parentInstance,
+    //   child
+    // );
     // console.log(parentInstance, child);
     // if (parentInstance.appendChild) {
     //   parentInstance.appendChild(child);
@@ -217,19 +245,19 @@ const ReactApeFiber = reconciler({
 
   shouldSetTextContent(props) {
     return (
-      typeof props.children === 'string' || typeof props.children === 'number'
+      typeof props.children === "string" || typeof props.children === "number"
     );
-  },
+  }
 });
 
 ReactApeFiber.injectIntoDevTools({
   ...devToolsConfig,
-  findHostInstanceByFiber: ReactApeFiber.findHostInstance,
+  findHostInstanceByFiber: ReactApeFiber.findHostInstance
 });
 
 const defaultContainer = {};
 // Using WeakMap avoids memory leak in case the container is garbage colected.
-const roots = typeof WeakMap === 'function' ? new WeakMap() : new Map();
+const roots = typeof WeakMap === "function" ? new WeakMap() : new Map();
 
 const ReactApeRenderer = {
   render(reactApeElement, canvasDOMElement, callback) {
@@ -245,7 +273,7 @@ const ReactApeRenderer = {
     ReactApeFiber.updateContainer(reactApeElement, root, null, callback);
 
     return ReactApeFiber.getPublicRootInstance(root);
-  },
+  }
 };
 
 export default ReactApeRenderer;

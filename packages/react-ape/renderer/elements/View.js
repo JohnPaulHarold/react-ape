@@ -6,28 +6,29 @@
  *
  */
 
-import {defaultViewSize} from '../constants';
+import { defaultViewSize } from "../constants";
 
 class View {
   constructor(props) {
     this.props = props;
-    this.type = 'View';
+    this.type = "View";
     this.spatialGeometry = {};
     this.renderQueue = [];
   }
 
   appendChild(fn) {
+    // console.log("[appendChild] fn %o", fn);
     this.renderQueue.push(fn);
   }
 
   getLayoutDefinitions = () => {
     return {
       style: {
-        backgroundColor: 'white',
-        borderColor: 'white',
-        ...(this.props.style || {}),
+        backgroundColor: "white",
+        borderColor: "white",
+        ...(this.props.style || {})
       },
-      spatialGeometry: this.spatialGeometry,
+      spatialGeometry: this.spatialGeometry
     };
   };
 
@@ -39,45 +40,77 @@ class View {
     // noop
   }
 
-  render(apeContext) {
-    const {ctx, getSurfaceHeight, setSurfaceHeight} = apeContext;
-    const {style = {}} = this.props;
+  render(apeContext, layoutDefs) {
+    console.log("[render] apeContext %o layoutDefs %o", apeContext, layoutDefs);
+
+    // console.log("[render] renderQueue", this.renderQueue);
+
+    const { ctx, getSurfaceHeight, setSurfaceHeight } = apeContext;
+    const { style = {}, children } = this.props;
 
     const previousStroke = ctx.strokeStyle;
     let x = style.x || style.left || 0; // legacy support
     let y = style.y || style.top || 0; // legacy support
+
+    // add the parent x,y offset to the child x,y
+    if (layoutDefs) {
+      const { spatialGeometry } = layoutDefs;
+      x += spatialGeometry.x;
+      y += spatialGeometry.y;
+    }
+
     const width = style.width || defaultViewSize;
     const height = style.height || defaultViewSize;
 
-    if (!style.position || style.position === 'relative') {
+    console.log("[render] children", children);
+
+    if (!style.position || style.position === "relative") {
       const surfaceHeight = getSurfaceHeight();
+      console.log(
+        "[render] surfaceHeight %o props %o",
+        surfaceHeight,
+        this.props
+      );
       y = surfaceHeight;
-      setSurfaceHeight(surfaceHeight + height);
+
+      // seems that `Text` components are a bit special?
+      if (children && children.type !== "Text") {
+        setSurfaceHeight(surfaceHeight);
+      } else {
+        setSurfaceHeight(surfaceHeight + height);
+      }
     }
 
-    ctx.globalCompositeOperation = 'destination-over';
+    ctx.globalCompositeOperation = "source-over";
     ctx.beginPath();
     ctx.rect(x, y, width, height);
-    ctx.strokeStyle = style.borderColor || 'transparent';
-    ctx.fillStyle = style.backgroundColor || 'transparent';
+    ctx.strokeStyle = style.borderColor || "transparent";
+    ctx.fillStyle = style.backgroundColor || "transparent";
     ctx.fill();
     ctx.stroke();
     ctx.closePath();
 
     // Reset Context
-    ctx.globalCompositeOperation = 'source-over';
+    ctx.globalCompositeOperation = "source-over";
     ctx.strokeStyle = previousStroke;
 
-    this.spatialGeometry = {x, y};
+    this.spatialGeometry = { x, y };
 
     const callRenderFunctions = renderFunction => {
-      renderFunction.render
-        ? renderFunction.render(
-            apeContext,
-            // spatialGeometry: specific data for elements rendered inside the View
-            this.getLayoutDefinitions()
-          )
-        : null;
+      if (renderFunction.render) {
+        renderFunction.render(
+          apeContext,
+          // spatialGeometry: specific data for elements rendered inside the View
+          this.getLayoutDefinitions()
+        );
+      }
+      // renderFunction.render
+      //   ? renderFunction.render(
+      //       apeContext,
+      //       // spatialGeometry: specific data for elements rendered inside the View
+      //       this.getLayoutDefinitions()
+      //     )
+      //   : null;
     };
 
     this.renderQueue.forEach(callRenderFunctions);
